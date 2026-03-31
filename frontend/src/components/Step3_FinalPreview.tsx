@@ -4,14 +4,12 @@ import { jsPDF } from 'jspdf';
 export const Step3_FinalPreview: React.FC<any> = ({ data, selections, onRestart }) => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const master = data.master_record;
-  const optimized = data.optimized_sections;
   const audit = data.audit;
 
   const generatePDFBlob = (isDownload: boolean = false): string | URL | undefined => {
     const doc = new jsPDF();
     let y = 20;
 
-    // Helper to manage page overflow and headers
     const addSectionHeader = (title: string) => {
       if (y > 260) { 
         doc.addPage(); 
@@ -22,20 +20,20 @@ export const Step3_FinalPreview: React.FC<any> = ({ data, selections, onRestart 
       y += 8;
     };
 
-    // 1. HEADER - Standardized Format
+    // 1. HEADER
     doc.setFont("times", "bold").setFontSize(22).text(master.personal?.name?.toUpperCase() || "RESUME", 105, y, { align: 'center' });
     y += 10;
     doc.setFont("times", "normal").setFontSize(10).text(`${master.personal?.email} | ${master.personal?.phone}`, 105, y, { align: 'center' });
     y += 15;
 
-    // 2. SUMMARY (4-5 lines as requested)
+    // 2. SUMMARY
     addSectionHeader("PROFESSIONAL SUMMARY");
     doc.setFont("times", "normal").setFontSize(11);
     const sLines = doc.splitTextToSize(selections.summary || "", 170);
     doc.text(sLines, 20, y);
     y += (sLines.length * 5) + 10;
 
-    // 3. EDUCATION (NCU BCA | 8.90 CGPA)
+    // 3. EDUCATION
     addSectionHeader("EDUCATION");
     master.education?.forEach((edu: any) => {
       doc.setFont("times", "bold").text(edu.degree, 20, y);
@@ -46,45 +44,90 @@ export const Step3_FinalPreview: React.FC<any> = ({ data, selections, onRestart 
     });
     y += 4;
 
-    // 4. SKILLS SECTION (Technical & Soft)
+    // 4. SKILLS & COMPETENCIES (Universal & Domain-Agnostic)
     addSectionHeader("SKILLS & COMPETENCIES");
     
-    // Technical Skills
-    doc.setFont("times", "bold").setFontSize(11).text("Technical Skills: ", 20, y);
-    doc.setFont("times", "normal");
-    const techText = selections.techSkills?.join(", ") || "";
-    const techLines = doc.splitTextToSize(techText, 140);
-    doc.text(techLines, 50, y);
-    y += (techLines.length * 5) + 5;
+    doc.setFont("times", "bold").setFontSize(11).text("Professional Skills", 20, y);
+    y += 6;
+    doc.setFontSize(10);
 
-    // Soft Skills - FIXED: Added back to the PDF mapping
-    if (y > 275) { doc.addPage(); y = 20; }
-    doc.setFont("times", "bold").text("Soft Skills: ", 20, y);
-    doc.setFont("times", "normal");
-    const softText = selections.softSkills?.join(", ") || "";
-    const softLines = doc.splitTextToSize(softText, 140);
-    doc.text(softLines, 50, y);
-    y += (softLines.length * 5) + 10;
+    // DYNAMIC SKILL MAPPING: Adapts to any domain (Psychology, Tech, etc.)
+    const skillCategories = master.skills ? Object.keys(master.skills) : [];
 
-    // 5. EXPERIENCE & INTERNSHIPS (Combined for flow)
-    const allExp = [...(optimized.experience || []), ...(master.internships || [])];
-    if (allExp.length > 0) {
+    if (skillCategories.length > 0) {
+      skillCategories.forEach((key) => {
+        const content = master.skills[key];
+        
+        // Only render if the category has data
+        if (content && (Array.isArray(content) ? content.length > 0 : content)) {
+          if (y > 275) { doc.addPage(); y = 20; }
+          
+          // Format label (e.g., "tech_stack" -> "Tech Stack:")
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ":";
+          
+          doc.setFont("times", "bold");
+          doc.text(label, 25, y);
+          
+          doc.setFont("times", "normal");
+          const skillList = Array.isArray(content) ? content.join(", ") : content;
+          const catLines = doc.splitTextToSize(skillList, 130);
+          
+          // Using x=65 to prevent overlap with bold labels
+          doc.text(catLines, 65, y); 
+          y += (catLines.length * 5) + 2;
+        }
+      });
+    }
+
+    // CORE COMPETENCIES (Tailored keywords for ATS match)
+    if (selections.techSkills && selections.techSkills.length > 0) {
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFont("times", "bold").text("Core Competencies:", 25, y);
+      doc.setFont("times", "normal");
+      const tailoredText = selections.techSkills.join(", ");
+      const tailoredLines = doc.splitTextToSize(tailoredText, 130);
+      doc.text(tailoredLines, 65, y);
+      y += (tailoredLines.length * 5) + 5;
+    }
+
+    // SOFT SKILLS
+    if (selections.softSkills && selections.softSkills.length > 0) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFont("times", "bold").setFontSize(11).text("Soft Skills:", 25, y);
+      doc.setFont("times", "normal");
+      const softText = selections.softSkills.join(", ");
+      const softLines = doc.splitTextToSize(softText, 130);
+      doc.text(softLines, 65, y);
+      y += (softLines.length * 5) + 12;
+    }
+
+    // 5. PROFESSIONAL EXPERIENCE (Deduplicated Master Data)
+    const allExp = [...(master.experience || []), ...(master.internships || [])];
+    const uniqueExp = allExp.filter((item, index, self) =>
+        index === self.findIndex((t) => (
+          t.company.toLowerCase() === item.company.toLowerCase()
+        ))
+    );
+
+    if (uniqueExp.length > 0) {
       addSectionHeader("PROFESSIONAL EXPERIENCE");
-      allExp.forEach((job: any) => {
+      uniqueExp.forEach((job: any) => {
         if (y > 260) { doc.addPage(); y = 20; }
-        doc.setFont("times", "bold").text(`${job.company} - ${job.role}`, 20, y); y += 6;
+        doc.setFont("times", "bold").text(`${job.company} - ${job.role}`, 20, y); 
+        y += 6;
         doc.setFont("times", "normal");
-        const bullets = job.optimized_bullets || job.bullets || [];
+        const bullets = job.bullets || [];
         bullets.forEach((b: string) => {
           if (y > 275) { doc.addPage(); y = 20; }
           const bLines = doc.splitTextToSize(`• ${b}`, 165);
-          doc.text(bLines, 25, y); y += (bLines.length * 5);
+          doc.text(bLines, 25, y); 
+          y += (bLines.length * 5);
         });
         y += 5;
       });
     }
 
-    // 6. PROJECTS (Ensuring these likely fall on Page 2)
+    // 6. PROJECTS
     if (master.projects?.length > 0) {
       addSectionHeader("PROJECTS");
       master.projects.forEach((p: any) => {
@@ -96,14 +139,16 @@ export const Step3_FinalPreview: React.FC<any> = ({ data, selections, onRestart 
       });
     }
 
-    // 7. ACHIEVEMENTS & CERTIFICATIONS (NPTEL, IIT Goa, Coding Ninjas)
+    // 7. ADDITIONAL CREDENTIALS
     if ((master.achievements?.length || 0) + (master.certifications?.length || 0) > 0) {
         addSectionHeader("ADDITIONAL CREDENTIALS");
         const extras = [...(master.achievements || []), ...(master.certifications || [])];
         extras.forEach(item => {
             if (y > 280) { doc.addPage(); y = 20; }
-            const itemLines = doc.splitTextToSize(`• ${item}`, 165);
-            doc.text(itemLines, 25, y); y += (itemLines.length * 6);
+            const displayText = typeof item === 'object' ? (item.title || item.name || JSON.stringify(item)) : item;
+            const itemLines = doc.splitTextToSize(`• ${displayText}`, 165);
+            doc.text(itemLines, 25, y); 
+            y += (itemLines.length * 6);
         });
     }
 
