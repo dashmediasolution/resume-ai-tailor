@@ -3,13 +3,13 @@ import json
 # Synonym Map to group diverse headers into standard keys
 SECTION_MAP = {
     "personal": ["contact", "info", "identity", "links", "socials"],
-    "summary": ["summary","professional summary", "objective", "profile", "introduction", "about me"],
-    "education": ["education","academic background", "studies", "qualifications", "academics"],
-    "experience": ["experience","work history", "employment", "professional background"],
-    "internships": ["internships","trainee roles", "apprenticeships", "summer internship"],
-    "projects": ["projects","personal builds", "technical projects", "portfolio"],
-    "certifications": ["certifications","courses", "training", "nptel"],
-    "achievements": ["achievements","awards", "honors", "milestones"]
+    "summary": ["summary", "professional summary", "objective", "profile", "introduction", "about me"],
+    "education": ["education", "academic background", "studies", "qualifications", "academics"],
+    "experience": ["experience", "work history", "employment", "professional background"],
+    "internships": ["internships", "trainee roles", "apprenticeships", "summer internship"],
+    "projects": ["projects", "personal builds", "technical projects", "portfolio"],
+    "certifications": ["certifications", "courses", "training", "nptel"],
+    "achievements": ["achievements", "awards", "honors", "milestones"]
 }
 
 def robust_cv_mapper(client, raw_text):
@@ -42,6 +42,7 @@ def robust_cv_mapper(client, raw_text):
             response_format={"type": "json_object"},
             temperature=0.0
         )
+        # ✅ FIX 3: choices is a list — need [0] index
         return json.loads(response.choices[0].message.content)
     except Exception as e:
         print(f"Mapping/Validation Error: {e}")
